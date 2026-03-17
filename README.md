@@ -27,7 +27,7 @@ Seek is a lightweight, privacy-focused Progressive Web App (PWA) designed for mo
 1.  **Ollama**: Install [Ollama](https://ollama.com/) on your workstation.
 2.  **Vision Model**: Pull a vision-capable model:
     ```bash
-    ollama pull qwen2-vl:8b
+    ollama pull qwen3-vl:8b
     ```
 3.  **.NET 8 SDK**: For building and running the backend.
 
