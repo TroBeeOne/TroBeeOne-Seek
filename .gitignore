@@ -1,0 +1,25 @@
+## [Visual Studio / .NET]
+[Bb]in/
+[Oo]bj/
+[Tt]est[Rr]esult*/
+.vs/
+
+## [User-specific files]
+*.user
+*.userosscache
+*.sln.docstates
+
+## [Gemini / AI Tools]
+.gemini/
+.geminiignore
+GEMINI.md
+*.log
+
+## [PWA / Node if applicable]
+node_modules/
+dist/
+.env
+
+## [OS specific]
+Thumbs.db
+.DS_Store

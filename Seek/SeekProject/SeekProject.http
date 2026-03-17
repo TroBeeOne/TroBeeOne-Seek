@@ -1,0 +1,6 @@
+@SeekProject_HostAddress = http://localhost:5239
+
+GET {{SeekProject_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

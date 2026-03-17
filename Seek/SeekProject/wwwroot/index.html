@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Seek - Visual AI</title>
+    <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
+    <meta name="theme-color" content="#1e1e1e">
+    <link rel="icon" href="t1-icon.svg">
+    <style>
+        :root {
+            --bg-color: #000;
+            --text-color: #fff;
+            --accent-color: #3b82f6;
+            --overlay-bg: rgba(0, 0, 0, 0.6);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #app {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Camera Background */
+        .camera-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: #111;
+        }
+
+        #video-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .captured-preview {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+            z-index: 2;
+        }
+
+        /* UI Overlays */
+        .overlay {
+            position: relative;
+            z-index: 10;
+            pointer-events: none;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .header {
+            padding: 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+            pointer-events: auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+
+        .controls {
+            padding: 30px;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .prompt-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+        }
+
+        .prompt-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 5px;
+            font-size: 1rem;
+            outline: none;
+            resize: none;
+            height: 4.5em; /* Approximately 3 lines */
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        .pre-made-prompts {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+            scrollbar-width: none;
+        }
+        .pre-made-prompts::-webkit-scrollbar { display: none; }
+
+        .pre-made-btn {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: #ddd;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .shutter-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: white;
+            border: 5px solid rgba(255,255,255,0.3);
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-size: 1.5rem;
+        }
+
+        .shutter-btn:active {
+            transform: scale(0.9);
+        }
+
+        .shutter-btn.processing {
+            background: var(--accent-color);
+            animation: pulse 1.5s infinite;
+        }
+
+        .shutter-btn.ready-to-send {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .secondary-btns {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            min-width: 60px;
+        }
+
+        .icon-btn span:first-child {
+            font-size: 1.2rem;
+        }
+
+        /* Results Panel */
+        .results-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1e1e1e;
+            z-index: 20;
+            transform: translateY(100%);
+            transition: transform 0.3s ease-out;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .results-panel.open {
+            transform: translateY(0);
+        }
+
+        .results-header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+
+        .results-content {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+
+        /* Markdown Styles */
+        .results-content a {
+            color: var(--accent-color);
+            text-decoration: underline;
+        }
+        .results-content h1, .results-content h2, .results-content h3 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            color: var(--accent-color);
+        }
+        .results-content p {
+            margin-bottom: 1em;
+        }
+        .results-content ul, .results-content ol {
+            padding-left: 20px;
+            margin-bottom: 1em;
+        }
+        .results-content code {
+            background: rgba(255,255,255,0.1);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .results-content pre {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .results-content strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .close-results {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #fff;
+            font-size: 1.2rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .copy-btn {
+            background: var(--accent-color);
+            border: none;
+            color: white;
+            padding: 6px 15px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        /* Utils */
+        .hidden { display: none; }
+        
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <!-- Camera / Preview -->
+        <div class="camera-container">
+            <video id="video-feed" ref="video" autoplay playsinline muted v-show="!capturedImage"></video>
+            <img :src="capturedImage" v-if="capturedImage" class="captured-preview" />
+        </div>
+
+        <!-- UI -->
+        <div class="overlay">
+            <div class="header">
+                <h1>SEEK</h1>
+                <div style="display: flex; gap: 15px;">
+                    <button class="icon-btn" @click="resetApp">
+                        <span>🔄</span>
+                        <span>Reset</span>
+                    </button>
+                    <button class="icon-btn" @click="toggleCamera" v-if="!capturedImage">
+                        <span>📷</span>
+                        <span>Flip</span>
+                    </button>
+                    <button class="icon-btn" @click="downloadImage" v-if="capturedImage">
+                        <span>💾</span>
+                        <span>Save</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="prompt-container">
+                    <div class="pre-made-prompts">
+                        <button v-for="p in preMadePrompts" :key="p.label" class="pre-made-btn" @click="prompt = p.text">
+                            {{ p.label }}
+                        </button>
+                    </div>
+                    <textarea 
+                        class="prompt-input" 
+                        v-model="prompt" 
+                        placeholder="Ask anything or just snap..."
+                        rows="3"
+                    ></textarea>
+                </div>
+
+                <div class="secondary-btns">
+                    <button class="icon-btn" @click="$refs.fileInput.click()">
+                        <span>📁</span>
+                        <span>Upload</span>
+                    </button>
+                    
+                    <button 
+                        class="shutter-btn" 
+                        :class="{ processing: loading, 'ready-to-send': capturedImage }" 
+                        @click="handleMainAction"
+                        :disabled="loading"
+                    >
+                        <span v-if="capturedImage && !loading">➔</span>
+                    </button>
+
+                    <button class="icon-btn" @click="showResults = !showResults" :disabled="!result">
+                        <span>💬</span>
+                        <span>Result</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden inputs -->
+        <input type="file" ref="fileInput" class="hidden" accept="image/*" @change="onFileSelected">
+        <canvas ref="canvas" class="hidden"></canvas>
+
+        <!-- Results Panel -->
+        <div class="results-panel" :class="{ open: showResults }">
+            <div class="results-header">
+                <button class="copy-btn" @click="copyToClipboard" v-if="result">Copy Text</button>
+                <div v-else></div>
+                <button class="close-results" @click="showResults = false">×</button>
+            </div>
+            <div class="results-content">
+                <div v-if="loading && !result">Analyzing image...</div>
+                <div v-html="formattedResult"></div>
+                <div v-if="!result && !loading">No analysis yet.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vue 3 via ESM -->
+    <script type="importmap">
+    {
+        "imports": {
+            "vue": "./js/vue.esm-browser.js",
+            "marked": "./js/marked.esm.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import { createApp, ref, computed, onMounted, nextTick } from 'vue';
+        import { marked } from 'marked';
+
+        createApp({
+            setup() {
+                const video = ref(null);
+                const canvas = ref(null);
+                const fileInput = ref(null);
+                const capturedImage = ref(null);
+                const prompt = ref('');
+                const result = ref('');
+                const loading = ref(false);
+                const showResults = ref(false);
+                const stream = ref(null);
+                const facingMode = ref('environment');
+
+                const preMadePrompts = [
+                    { label: 'Barcode', text: 'Scan this barcode and provide the link or number. If it is a link, format it as a clickable markdown link.' },
+                    { label: 'Inventory', text: 'Take inventory of the objects seen in this image and provide a list with counts for each item.' },
+                    { label: 'OCR', text: 'Read the entire text found in this image and return it exactly as written.' },
+                    { label: 'Describe', text: 'Describe this image in detail.' }
+                ];
+
+                const startCamera = async () => {
+                    try {
+                        if (stream.value) {
+                            stream.value.getTracks().forEach(track => track.stop());
+                        }
+                        stream.value = await navigator.mediaDevices.getUserMedia({
+                            video: { facingMode: facingMode.value },
+                            audio: false
+                        });
+                        if (video.value) video.value.srcObject = stream.value;
+                    } catch (err) {
+                        console.error("Camera error:", err);
+                    }
+                };
+
+                const toggleCamera = () => {
+                    facingMode.value = facingMode.value === 'user' ? 'environment' : 'user';
+                    startCamera();
+                };
+
+                const capture = () => {
+                    const ctx = canvas.value.getContext('2d');
+                    canvas.value.width = video.value.videoWidth;
+                    canvas.value.height = video.value.videoHeight;
+                    ctx.drawImage(video.value, 0, 0);
+                    capturedImage.value = canvas.value.toDataURL('image/jpeg');
+                    // Removed auto-analyze
+                };
+
+                const onFileSelected = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        capturedImage.value = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+                const handleMainAction = () => {
+                    if (capturedImage.value) {
+                        analyze();
+                    } else {
+                        capture();
+                    }
+                };
+
+                const analyze = async () => {
+                    if (!capturedImage.value) return;
+                    
+                    loading.value = true;
+                    showResults.value = true;
+                    result.value = '';
+
+                    try {
+                        const response = await fetch('api/analyze', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                imageBase64: capturedImage.value.split(',')[1],
+                                prompt: prompt.value || 'Describe this image in detail.'
+                            })
+                        });
+
+                        if (!response.ok) throw new Error("Failed to analyze");
+
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            const chunk = decoder.decode(value);
+                            
+                            const lines = chunk.split('\n');
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const jsonStr = line.substring(6);
+                                        if (!jsonStr.trim()) continue;
+                                        const data = JSON.parse(jsonStr);
+                                        if (data.message && data.message.content) {
+                                            result.value += data.message.content;
+                                        } else if (data.error) {
+                                            result.value += "\nError: " + data.error;
+                                        }
+                                    } catch (e) {
+                                        console.error("Parse error", e, line);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        result.value = "Error: " + err.message;
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const resetApp = () => {
+                    capturedImage.value = null;
+                    result.value = '';
+                    prompt.value = '';
+                    showResults.value = false;
+                    loading.value = false;
+                    if (!stream.value) startCamera();
+                };
+
+                const downloadImage = () => {
+                    if (!capturedImage.value) return;
+                    const link = document.createElement('a');
+                    link.download = `seek-capture-${Date.now()}.jpg`;
+                    link.href = capturedImage.value;
+                    link.click();
+                };
+
+                const copyToClipboard = () => {
+                    navigator.clipboard.writeText(result.value).then(() => {
+                        const btn = document.querySelector('.copy-btn');
+                        const oldText = btn.innerText;
+                        btn.innerText = 'Copied!';
+                        setTimeout(() => btn.innerText = oldText, 2000);
+                    });
+                };
+
+                const formattedResult = computed(() => {
+                    if (!result.value) return '';
+                    // Ensure links open in new tab
+                    const html = marked.parse(result.value);
+                    const div = document.createElement('div');
+                    div.innerHTML = html;
+                    div.querySelectorAll('a').forEach(a => a.target = '_blank');
+                    return div.innerHTML;
+                });
+
+                onMounted(() => {
+                    startCamera();
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.register('sw.js');
+                    }
+                });
+
+                return {
+                    video, canvas, fileInput,
+                    capturedImage, prompt, result, loading, showResults, preMadePrompts,
+                    toggleCamera, handleMainAction, onFileSelected, resetApp, formattedResult, analyze,
+                    downloadImage, copyToClipboard
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
